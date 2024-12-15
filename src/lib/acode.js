@@ -1,336 +1,445 @@
-import Url from "utils/Url";
-import fonts from 'lib/fonts';
-import box from 'dialogs/box';
-import Color from 'utils/color';
-import themes from 'theme/list';
-import files from 'lib/fileList';
-import alert from 'dialogs/alert';
-import Page from 'components/page';
-import commands from "lib/commands";
-import helpers from "utils/helpers";
-import projects from "lib/projects";
-import prompt from 'dialogs/prompt';
-import select from 'dialogs/select';
-import loader from 'dialogs/loader';
+import Contextmenu from "components/contextmenu";
+import inputhints from "components/inputhints";
+import Page from "components/page";
+import palette from "components/palette";
+import settingsPage from "components/settingsPage";
+import SideButton from "components/sideButton";
+import toast from "components/toast";
+import tutorial from "components/tutorial";
+import alert from "dialogs/alert";
+import box from "dialogs/box";
+import colorPicker from "dialogs/color";
+import confirm from "dialogs/confirm";
+import loader from "dialogs/loader";
+import multiPrompt from "dialogs/multiPrompt";
+import prompt from "dialogs/prompt";
+import select from "dialogs/select";
 import fsOperation from "fileSystem";
-import toast from 'components/toast';
-import sidebarApps from 'sidebarApps';
-import confirm from 'dialogs/confirm';
-import appSettings from "lib/settings";
-import colorPicker from 'dialogs/color';
+import keyboardHandler from "handlers/keyboard";
+import windowResize from "handlers/windowResize";
+import actionStack from "lib/actionStack";
+import commands from "lib/commands";
 import EditorFile from "lib/editorFile";
-import openFolder from 'lib/openFolder';
-import encodings from 'utils/encodings';
-import palette from 'components/palette';
-import actionStack from 'lib/actionStack';
-import tutorial from 'components/tutorial';
-import FileBrowser from "pages/fileBrowser";
-import ThemeBuilder from 'theme/builder';
+import files from "lib/fileList";
+import fonts from "lib/fonts";
+import NotificationManager from "lib/notificationManager";
+import openFolder from "lib/openFolder";
+import projects from "lib/projects";
 import selectionMenu from "lib/selectionMenu";
-import multiPrompt from 'dialogs/multiPrompt';
-import inputhints from 'components/inputhints';
-import KeyboardEvent from 'utils/keyboardEvent';
-import keyboardHandler from 'handlers/keyboard';
-import windowResize from 'handlers/windowResize';
-import Contextmenu from 'components/contextmenu';
+import appSettings from "lib/settings";
+import FileBrowser from "pages/fileBrowser";
 import formatterSettings from "settings/formatterSettings";
-import settingsPage from 'components/settingsPage';
-import SideButton from 'components/sideButton';
+import sidebarApps from "sidebarApps";
+import ThemeBuilder from "theme/builder";
+import themes from "theme/list";
+import Url from "utils/Url";
+import Color from "utils/color";
+import encodings from "utils/encodings";
+import helpers from "utils/helpers";
+import KeyboardEvent from "utils/keyboardEvent";
+import constants from "./constants";
 
-import { addedFolder } from 'lib/openFolder';
-import { decode, encode } from 'utils/encodings';
-import { addMode, removeMode } from 'ace/modelist';
-import { addIntentHandler, removeIntentHandler } from 'handlers/intent';
+import { addMode, removeMode } from "ace/modelist";
+import { addIntentHandler, removeIntentHandler } from "handlers/intent";
+import { addedFolder } from "lib/openFolder";
+import { decode, encode } from "utils/encodings";
 
 export default class Acode {
-  #modules = {};
-  #pluginsInit = {};
-  #pluginUnmount = {};
-  #formatter = [{
-    id: 'default',
-    name: 'Default',
-    exts: ['*'],
-    format: async () => {
-      const { beautify } = ace.require('ace/ext/beautify');
-      const cursorPos = editorManager.editor.getCursorPosition();
-      beautify(editorManager.editor.session);
-      editorManager.editor.gotoLine(cursorPos.row + 1, cursorPos.column);
-    }
-  }];
+	#modules = {};
+	#pluginsInit = {};
+	#pluginUnmount = {};
+	#formatter = [
+		{
+			id: "default",
+			name: "Default",
+			exts: ["*"],
+			format: async () => {
+				const { beautify } = ace.require("ace/ext/beautify");
+				const cursorPos = editorManager.editor.getCursorPosition();
+				beautify(editorManager.editor.session);
+				editorManager.editor.gotoLine(cursorPos.row + 1, cursorPos.column);
+			},
+		},
+	];
 
-  constructor() {
-    const encodingsModule = {
-      get encodings() {
-        return encodings;
-      },
-      encode,
-      decode,
-    };
+	constructor() {
+		const encodingsModule = {
+			get encodings() {
+				return encodings;
+			},
+			encode,
+			decode,
+		};
 
-    const themesModule = {
-      add: themes.add,
-      get: themes.get,
-      list: themes.list,
-      update: themes.update,
-      // Deprecated, not supported anymore
-      apply: () => { },
-    };
+		const themesModule = {
+			add: themes.add,
+			get: themes.get,
+			list: themes.list,
+			update: themes.update,
+			// Deprecated, not supported anymore
+			apply: () => {},
+		};
 
-    const sidebarAppsModule = {
-      add: sidebarApps.add,
-      get: sidebarApps.get,
-      remove: sidebarApps.remove,
-    };
+		const sidebarAppsModule = {
+			add: sidebarApps.add,
+			get: sidebarApps.get,
+			remove: sidebarApps.remove,
+		};
 
-    const aceModes = {
-      addMode,
-      removeMode,
-    };
+		const aceModes = {
+			addMode,
+			removeMode,
+		};
 
-    const intent = {
-      addHandler: addIntentHandler,
-      removeHandler: removeIntentHandler,
-    };
+		const intent = {
+			addHandler: addIntentHandler,
+			removeHandler: removeIntentHandler,
+		};
 
-    this.define('Url', Url);
-    this.define('page', Page);
-    this.define('Color', Color);
-    this.define('fonts', fonts);
-    this.define('toast', toast);
-    this.define('alert', alert);
-    this.define('select', select);
-    this.define('loader', loader);
-    this.define('dialogBox', box);
-    this.define('prompt', prompt);
-    this.define('intent', intent);
-    this.define('fileList', files);
-    this.define('fs', fsOperation);
-    this.define('confirm', confirm);
-    this.define('helpers', helpers);
-    this.define('palette', palette);
-    this.define('projects', projects);
-    this.define('tutorial', tutorial);
-    this.define('aceModes', aceModes);
-    this.define('themes', themesModule);
-    this.define('settings', appSettings);
-    this.define('sideButton', SideButton);
-    this.define('EditorFile', EditorFile);
-    this.define('inputhints', inputhints);
-    this.define('openfolder', openFolder);
-    this.define('colorPicker', colorPicker);
-    this.define('actionStack', actionStack);
-    this.define('multiPrompt', multiPrompt);
-    this.define('addedfolder', addedFolder);
-    this.define('contextMenu', Contextmenu);
-    this.define('fileBrowser', FileBrowser);
-    this.define('fsOperation', fsOperation);
-    this.define('keyboard', keyboardHandler);
-    this.define('windowResize', windowResize);
-    this.define('encodings', encodingsModule);
-    this.define('themeBuilder', ThemeBuilder);
-    this.define('selectionMenu', selectionMenu);
-    this.define('sidebarApps', sidebarAppsModule);
-    this.define('createKeyboardEvent', KeyboardEvent);
-    this.define('toInternalUrl', helpers.toInternalUri);
-  }
+		this.define("Url", Url);
+		this.define("page", Page);
+		this.define("Color", Color);
+		this.define("fonts", fonts);
+		this.define("toast", toast);
+		this.define("alert", alert);
+		this.define("select", select);
+		this.define("loader", loader);
+		this.define("dialogBox", box);
+		this.define("prompt", prompt);
+		this.define("intent", intent);
+		this.define("fileList", files);
+		this.define("fs", fsOperation);
+		this.define("confirm", confirm);
+		this.define("helpers", helpers);
+		this.define("palette", palette);
+		this.define("projects", projects);
+		this.define("tutorial", tutorial);
+		this.define("aceModes", aceModes);
+		this.define("themes", themesModule);
+		this.define("settings", appSettings);
+		this.define("sideButton", SideButton);
+		this.define("EditorFile", EditorFile);
+		this.define("inputhints", inputhints);
+		this.define("openfolder", openFolder);
+		this.define("colorPicker", colorPicker);
+		this.define("actionStack", actionStack);
+		this.define("multiPrompt", multiPrompt);
+		this.define("addedfolder", addedFolder);
+		this.define("contextMenu", Contextmenu);
+		this.define("fileBrowser", FileBrowser);
+		this.define("fsOperation", fsOperation);
+		this.define("keyboard", keyboardHandler);
+		this.define("windowResize", windowResize);
+		this.define("encodings", encodingsModule);
+		this.define("themeBuilder", ThemeBuilder);
+		this.define("selectionMenu", selectionMenu);
+		this.define("sidebarApps", sidebarAppsModule);
+		this.define("createKeyboardEvent", KeyboardEvent);
+		this.define("toInternalUrl", helpers.toInternalUri);
+	}
 
-  /**
-   * Define a module
-   * @param {string} name 
-   * @param {Object|function} module 
-   */
-  define(name, module) {
-    this.#modules[name.toLowerCase()] = module;
-  }
+	/**
+	 * Define a module
+	 * @param {string} name
+	 * @param {Object|function} module
+	 */
+	define(name, module) {
+		this.#modules[name.toLowerCase()] = module;
+	}
 
-  require(module) {
-    return this.#modules[module.toLowerCase()];
-  }
+	require(module) {
+		return this.#modules[module.toLowerCase()];
+	}
 
-  exec(key, val) {
-    if (key in commands) {
-      return commands[key](val);
-    } else {
-      return false;
-    }
-  }
+	exec(key, val) {
+		if (key in commands) {
+			return commands[key](val);
+		} else {
+			return false;
+		}
+	}
 
-  get exitAppMessage() {
-    const numFiles = editorManager.hasUnsavedFiles();
-    if (numFiles) {
-      return strings['unsaved files close app'];
-    }
-  }
+	/**
+	 * Installs an Acode plugin from registry
+	 * @param {string} pluginId id of the plugin to install
+	 * @param {string} installerPluginName Name of plugin attempting to install
+	 * @returns {Promise<void>}
+	 */
+	installPlugin(pluginId, installerPluginName) {
+		return new Promise(async (resolve, reject) => {
+			try {
+				const confirmation = await confirm(
+					strings["install"],
+					`Do you want to install plugin '${pluginId}'${installerPluginName ? ` requested by ${installerPluginName}` : ""}?`,
+				);
 
-  setLoadingMessage(message) {
-    document.body.setAttribute('data-small-msg', message);
-  }
+				if (!confirmation) {
+					reject(new Error("User cancelled installation"));
+					return;
+				}
 
-  /**
-   * Sets plugin init function
-   * @param {string} id 
-   * @param {() => void} initFunction 
-   * @param {{list: import('components/settingsPage').ListItem[], cb: (key: string, value: string)=>void}} settings 
-   */
-  setPluginInit(id, initFunction, settings) {
-    this.#pluginsInit[id] = initFunction;
+				const isPluginExists = await fsOperation(
+					Url.join(PLUGIN_DIR, pluginId),
+				).exists();
+				if (isPluginExists) {
+					reject(new Error("PLugin already installed"));
+					return;
+				}
 
-    if (!settings) return;
-    appSettings.uiSettings[`plugin-${id}`] = settingsPage(id, settings.list, settings.cb);
-  }
+				let purchaseToken = null;
 
-  setPluginUnmount(id, unmountFunction) {
-    this.#pluginUnmount[id] = unmountFunction;
-  }
+				const pluginUrl = Url.join(constants.API_BASE, `plugin/${pluginId}`);
+				const remotePlugin = await fsOperation(pluginUrl)
+					.readFile("json")
+					.catch(() => {
+						reject(new Error("Failed to fetch plugin details"));
+						return null;
+					});
 
-  /**
-   * 
-   * @param {string} id plugin id
-   * @param {string} baseUrl local plugin url
-   * @param {HTMLElement} $page 
-   */
-  async initPlugin(id, baseUrl, $page, options) {
-    if (id in this.#pluginsInit) {
-      await this.#pluginsInit[id](baseUrl, $page, options);
-    }
-  }
+				if (remotePlugin) {
+					if (Number.parseFloat(remotePlugin.price) > 0) {
+						try {
+							const [product] = await helpers.promisify(iap.getProducts, [
+								remotePlugin.sku,
+							]);
+							if (product) {
+								async function getPurchase(sku) {
+									const purchases = await helpers.promisify(iap.getPurchases);
+									const purchase = purchases.find((p) =>
+										p.productIds.includes(sku),
+									);
+									return purchase;
+								}
+								const purchase = await getPurchase(product.productId);
+								purchaseToken = purchase?.purchaseToken;
+							}
+						} catch (error) {
+							helpers.error(error);
+							reject(new Error("Failed to validate purchase"));
+							return;
+						}
+					}
+				}
 
-  unmountPlugin(id) {
-    if (id in this.#pluginUnmount) {
-      this.#pluginUnmount[id]();
-      fsOperation(Url.join(CACHE_STORAGE, id)).delete();
-    }
+				const { default: installPlugin } = await import("lib/installPlugin");
+				await installPlugin(pluginId, remotePlugin.name, purchaseToken);
+				resolve();
+			} catch (error) {
+				reject(error);
+			}
+		});
+	}
 
-    delete appSettings.uiSettings[`plugin-${id}`];
-  }
+	get exitAppMessage() {
+		const numFiles = editorManager.hasUnsavedFiles();
+		if (numFiles) {
+			return strings["unsaved files close app"];
+		}
+	}
 
-  registerFormatter(id, extensions, format) {
-    this.#formatter.unshift({
-      id,
-      exts: extensions,
-      format,
-    });
-  }
+	setLoadingMessage(message) {
+		document.body.setAttribute("data-small-msg", message);
+	}
 
-  unregisterFormatter(id) {
-    this.#formatter = this.#formatter.filter((formatter) => formatter.id !== id);
-    const { formatter } = appSettings.value;
-    Object.keys(formatter).forEach((mode) => {
-      if (formatter[mode] === id) {
-        delete formatter[mode];
-      }
-    });
-    appSettings.update(false);
-  }
+	/**
+	 * Sets plugin init function
+	 * @param {string} id
+	 * @param {() => void} initFunction
+	 * @param {{list: import('components/settingsPage').ListItem[], cb: (key: string, value: string)=>void}} settings
+	 */
+	setPluginInit(id, initFunction, settings) {
+		this.#pluginsInit[id] = initFunction;
 
-  async format(selectIfNull = true) {
-    const file = editorManager.activeFile;
-    const { getModeForPath } = ace.require('ace/ext/modelist');
-    const { name } = getModeForPath(file.filename);
-    const formatterId = appSettings.value.formatter[name];
-    const formatter = this.#formatter.find(({ id }) => id === formatterId);
+		if (!settings) return;
+		appSettings.uiSettings[`plugin-${id}`] = settingsPage(
+			id,
+			settings.list,
+			settings.cb,
+		);
+	}
 
-    await formatter?.format();
+	setPluginUnmount(id, unmountFunction) {
+		this.#pluginUnmount[id] = unmountFunction;
+	}
 
-    if (!formatter && selectIfNull) {
-      formatterSettings(name);
-      this.#afterSelectFormatter(name);
-      return;
-    } else if (!formatter && !selectIfNull) {
-      toast(strings['please select a formatter']);
-    }
-  }
+	/**
+	 *
+	 * @param {string} id plugin id
+	 * @param {string} baseUrl local plugin url
+	 * @param {HTMLElement} $page
+	 */
+	async initPlugin(id, baseUrl, $page, options) {
+		if (id in this.#pluginsInit) {
+			await this.#pluginsInit[id](baseUrl, $page, options);
+		}
+	}
 
-  #afterSelectFormatter(name) {
-    appSettings.on('update:formatter', format);
+	unmountPlugin(id) {
+		if (id in this.#pluginUnmount) {
+			this.#pluginUnmount[id]();
+			fsOperation(Url.join(CACHE_STORAGE, id)).delete();
+		}
 
-    function format() {
-      appSettings.off('update:formatter', format);
-      const id = appSettings.value.formatter[name];
-      const formatter = this.#formatter.find(({ id: _id }) => _id === id);
-      formatter?.format();
-    }
-  }
+		delete appSettings.uiSettings[`plugin-${id}`];
+	}
 
-  fsOperation(file) {
-    return fsOperation(file);
-  }
+	registerFormatter(id, extensions, format) {
+		this.#formatter.unshift({
+			id,
+			exts: extensions,
+			format,
+		});
+	}
 
-  newEditorFile(filename, options) {
-    new EditorFile(filename, options);
-  }
+	unregisterFormatter(id) {
+		this.#formatter = this.#formatter.filter(
+			(formatter) => formatter.id !== id,
+		);
+		const { formatter } = appSettings.value;
+		Object.keys(formatter).forEach((mode) => {
+			if (formatter[mode] === id) {
+				delete formatter[mode];
+			}
+		});
+		appSettings.update(false);
+	}
 
-  get formatters() {
-    return this.#formatter.map(({ id, name, exts }) => ({
-      id,
-      name: name || id,
-      exts,
-    }));
-  }
+	async format(selectIfNull = true) {
+		const file = editorManager.activeFile;
+		const name = (file.session.getMode().$id || "").split("/").pop();
+		const formatterId = appSettings.value.formatter[name];
+		const formatter = this.#formatter.find(({ id }) => id === formatterId);
 
-  /**
-   * 
-   * @param {string[]} extensions 
-   * @returns {Array<[id: String, name: String]>} options
-   */
-  getFormatterFor(extensions) {
-    const options = [[null, strings.none]];
-    this.formatters.forEach(({ id, name, exts }) => {
-      const supports = exts.some((ext) => extensions.includes(ext));
-      if (supports || exts.includes('*')) {
-        options.push([id, name]);
-      }
-    });
-    return options;
-  }
+		await formatter?.format();
 
-  alert(title, message, onhide) {
-    alert(title, message, onhide);
-  }
+		if (!formatter && selectIfNull) {
+			formatterSettings(name);
+			this.#afterSelectFormatter(name);
+			return;
+		} else if (!formatter && !selectIfNull) {
+			toast(strings["please select a formatter"]);
+		}
+	}
 
-  loader(title, message, cancel) {
-    return loader.create(title, message, cancel);
-  }
+	#afterSelectFormatter(name) {
+		appSettings.on("update:formatter", format);
 
-  joinUrl(...args) {
-    return Url.join(...args);
-  }
+		function format() {
+			appSettings.off("update:formatter", format);
+			const id = appSettings.value.formatter[name];
+			const formatter = this.#formatter.find(({ id: _id }) => _id === id);
+			formatter?.format();
+		}
+	}
 
-  addIcon(className, src) {
-    let style = document.head.get(`style[icon="${className}"]`);
-    if (!style) {
-      style = <style icon={className}>{`.icon.${className}{background-image: url(${src})}`}</style>;
-      document.head.appendChild(style);
-    }
-  }
+	fsOperation(file) {
+		return fsOperation(file);
+	}
 
-  async prompt(message, defaultValue, type, options) {
-    const response = await prompt(message, defaultValue, type, options);
-    return response;
-  }
+	newEditorFile(filename, options) {
+		new EditorFile(filename, options);
+	}
 
-  async confirm(title, message) {
-    const confirmation = await confirm(title, message);
-    return confirmation;
-  }
+	get formatters() {
+		return this.#formatter.map(({ id, name, exts }) => ({
+			id,
+			name: name || id,
+			exts,
+		}));
+	}
 
-  async select(title, options, config) {
-    const response = await select(title, options, config);
-    return response;
-  }
+	/**
+	 *
+	 * @param {string[]} extensions
+	 * @returns {Array<[id: String, name: String]>} options
+	 */
+	getFormatterFor(extensions) {
+		const options = [[null, strings.none]];
+		this.formatters.forEach(({ id, name, exts }) => {
+			const supports = exts.some((ext) => extensions.includes(ext));
+			if (supports || exts.includes("*")) {
+				options.push([id, name]);
+			}
+		});
+		return options;
+	}
 
-  async multiPrompt(title, inputs, help) {
-    const values = await multiPrompt(title, inputs, help);
-    return values;
-  }
+	alert(title, message, onhide) {
+		alert(title, message, onhide);
+	}
 
-  async fileBrowser(mode, info, openLast) {
-    const res = await FileBrowser(mode, info, openLast);
-    return res;
-  }
+	loader(title, message, cancel) {
+		return loader.create(title, message, cancel);
+	}
 
-  async toInternalUrl(url) {
-    url = await helpers.toInternalUri(url);
-    return url;
-  }
+	joinUrl(...args) {
+		return Url.join(...args);
+	}
+
+	addIcon(className, src) {
+		let style = document.head.get(`style[icon="${className}"]`);
+		if (!style) {
+			style = (
+				<style
+					icon={className}
+				>{`.icon.${className}{background-image: url(${src})}`}</style>
+			);
+			document.head.appendChild(style);
+		}
+	}
+
+	async prompt(message, defaultValue, type, options) {
+		const response = await prompt(message, defaultValue, type, options);
+		return response;
+	}
+
+	async confirm(title, message) {
+		const confirmation = await confirm(title, message);
+		return confirmation;
+	}
+
+	async select(title, options, config) {
+		const response = await select(title, options, config);
+		return response;
+	}
+
+	async multiPrompt(title, inputs, help) {
+		const values = await multiPrompt(title, inputs, help);
+		return values;
+	}
+
+	async fileBrowser(mode, info, openLast) {
+		const res = await FileBrowser(mode, info, openLast);
+		return res;
+	}
+
+	async toInternalUrl(url) {
+		url = await helpers.toInternalUri(url);
+		return url;
+	}
+	/**
+	 * Push a notification
+	 * @param {string} title Title of the notification
+	 * @param {string} message Message body of the notification
+	 * @param {Object} options Notification options
+	 * @param {string} [options.icon] Icon for the notification, can be a URL or a base64 encoded image or icon class or svg string
+	 * @param {boolean} [options.autoClose=true] Whether notification should auto close
+	 * @param {Function} [options.action=null] Action callback when notification is clicked
+	 * @param {('info'|'warning'|'error'|'success')} [options.type='info'] Type of notification
+	 */
+	pushNotification(
+		title,
+		message,
+		{ icon, autoClose = true, action = null, type = "info" } = {},
+	) {
+		const nm = new NotificationManager();
+		nm.pushNotification({
+			title,
+			message,
+			icon,
+			autoClose,
+			action,
+			type,
+		});
+	}
 }
